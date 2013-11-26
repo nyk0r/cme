@@ -1,4 +1,5 @@
 var http = require('http'),
+    url = require('url'),
     fs = require('fs'),
     srv;
 
@@ -31,7 +32,7 @@ function handleStaticFile (url, res) {
     });
 }
 
-function handleMultipart (res) {
+function handleMultipart (res, count) {
     var partNumber = 0, 
         hsl = { hue: 0, saturation: 45, lightness: 45 },
         boundary = (+ new Date) + '===',
@@ -50,32 +51,35 @@ function handleMultipart (res) {
     function sendPart () {
         if (closed) return;
 
-        if (hsl.saturation <= 100) {
-            var id = hsl.hue + '-' + hsl.saturation + '-' + hsl.lightness,
-                hsla = 'hsla(' + hsl.hue + ',' + hsl.saturation + '%,' + hsl.lightness + '%, 1)';
+        var id = hsl.hue + '-' + hsl.saturation + '-' + hsl.lightness,
+            hsla = 'hsla(' + hsl.hue + ',' + hsl.saturation + '%,' + hsl.lightness + '%, 1)';
 
-            res.write(formatResponsePart(
-                'text/css', 
-                '.brick-' + id + '{ background-color:' + hsla + '}',
-                '--' + boundary + ';' + partNumber++
-            ));
+        res.write(formatResponsePart(
+            'text/css', 
+            '.brick-' + id + '{ background-color:' + hsla + '}',
+            '--' + boundary + ';' + partNumber++
+        ));
 
-            res.write(formatResponsePart(
-                'text/javascript', 
-                'addBrick("' + id + '")',
-                '--' + boundary + ';' + partNumber++
-            ));
+        res.write(formatResponsePart(
+            'text/javascript', 
+            'addBrick("' + id + '")',
+            '--' + boundary + ';' + partNumber++
+        ));
 
-            hsl.hue++;
-            if (hsl.hue > 360) {
-                hsl.hue = 0;
-                hsl.saturation++;
+        hsl.hue++;
+        if (hsl.hue > 360) {
+            hsl.hue = 0;
+            hsl.saturation++;
+            if (hsl.saturation > 100) {
+                hsl.saturation = 45;
             }
-
-            setTimeout(sendPart);
-        } else {
-            res.write('--' + boundary + '--');
         }
+
+        if (!count || partNumber < count) {
+            setImmediate(sendPart);
+        } else {
+            res.end('--' + boundary + '--');
+        } 
     }
 
     res.on('close', function () {
@@ -86,16 +90,14 @@ function handleMultipart (res) {
         'Content-Type': 'multipart/mixed; boundary=' + boundary,
         'X-Part-Number-Start': partNumber
     });
-    setTimeout(sendPart);    
+    setImmediate(sendPart);    
 }
 
 srv = http.createServer(function (req, res) {
-    var url = req.url
-
-    if (url === '/multipart') {
-        handleMultipart(res);
-    } else if (['/', '/index.html', '/client.js', '/style.css'].indexOf(url) != -1) {
-        handleStaticFile(url !== '/' ? url : '/index.html', res)
+    if (/^\/multipart/.test(req.url)) {
+        handleMultipart(res, url.parse(req.url, true).query.count);
+    } else if (['/', '/index.html', '/client.js', '/style.css'].indexOf(req.url) != -1) {
+        handleStaticFile(req.url !== '/' ? req.url : '/index.html', res)
     } else {
         res.writeHead(404, {
             'Content-Type': 'text/plain'
@@ -104,4 +106,6 @@ srv = http.createServer(function (req, res) {
     }
 });
 
-srv.listen(4242);
+srv.listen(4242, function () {
+    console.log('Listening on port 4242');
+});

@@ -6,9 +6,21 @@
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-
+	<form id="pieces">
+		<p>
+			Amount of pieces to request.<br />
+			If field is left blank then infinite amount will be requested. Thus data will be consumed and added to the DOM until page crashes eventually.
+		</p>
+		<input type="text" id="count" /><input type="button" id="request" value="request">
+	</form>
 </body>
 <script type="text/javascript">
-    handleMultipart('/multipart');
+	document.getElementById('request').onclick = function () {
+		var form = document.getElementById('pieces'),
+			countInput = document.getElementById('count'),
+			count = parseInt(countInput.value, 10);
+
+		handleMultipart('/multipart' + (count ? '?count='+count : ''));
+	};
 </script>
 </html>
